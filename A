@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聲控解謎成語大冒險</title>
+    <style>
+        :root {
+            --primary-color: #4A90E2;
+            --secondary-color: #F5A623;
+            --success-color: #7ED321;
+            --bg-color: #F0F4F8;
+            --card-bg: #FFFFFF;
+            --text-color: #333333;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .game-container {
+            background-color: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 650px;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header {
+            margin-bottom: 25px;
+        }
+
+        .header h1 {
+            color: var(--primary-color);
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .score-board {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--secondary-color);
+        }
+
+        /* 成語 display 區塊 */
+        .puzzle-box {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin: 30px 0;
+        }
+
+        .char-tile {
+            width: 75px;
+            height: 75px;
+            border: 3px solid var(--primary-color);
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 36px;
+            font-weight: bold;
+            color: var(--text-color);
+            background-color: #FFF;
+            transition: all 0.3s ease;
+        }
+
+        /* 缺字區塊樣式 */
+        .char-tile.missing {
+            border: 3px dashed #A0AEC0;
+            background-color: #EDF2F7;
+            color: transparent;
+        }
+
+        /* 解答補齊後的發光特效 */
+        .char-tile.revealed {
+            border-color: var(--success-color);
+            background-color: #E6FFFA;
+            color: #234E52;
+            animation: glow 1s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { box-shadow: 0 0 5px var(--success-color); transform: scale(1); }
+            to { box-shadow: 0 0 20px var(--success-color); transform: scale(1.05); }
+        }
+
+        .hint-box {
+            background-color: #F7FAFC;
+            border-left: 5px solid var(--primary-color);
+            padding: 15px;
+            margin-bottom: 25px;
+            text-align: left;
+            border-radius: 4px;
+        }
+
+        .hint-box p {
+            font-size: 16px;
+            color: #4A5568;
+            line-height: 1.5;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.1s ease, background-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+        }
+
+        .btn-demo {
+            background-color: #ED8936;
+            color: white;
+        }
+
+        .btn-mic {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-mic.listening {
+            background-color: #E53E3E;
+            animation: pulse 1.2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.7); }
+            70% { box-shadow: 0 0 0 12px rgba(229, 62, 62, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0); }
+        }
+
+        .status-text {
+            font-size: 16px;
+            min-height: 24px;
+            color: #718096;
+            margin-top: 10px;
+        }
+
+        .recognized-text {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        /* 過關動畫彈窗 */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        .overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .overlay h2 {
+            font-size: 32px;
+            color: var(--success-color);
+            margin-bottom: 10px;
+        }
+
+        .overlay p {
+            font-size: 18px;
+            color: var(--text-color);
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <div class="header">
+        <h1>🎙️ 聲控解謎成語大冒險</h1>
+        <div class="score-board">關卡：<span id="current-level">1</span> / <span id="total-levels">15</span></div>
+    </div>
+
+    <!-- 成語字塊顯示區 -->
+    <div class="puzzle-box" id="puzzle-box"></div>
+
+    <!-- 釋義提示區 -->
+    <div class="hint-box">
+        <strong>💡 成語釋義：</strong>
+        <p id="idiom-meaning">加載中...</p>
+    </div>
+
+    <!-- 控制按鈕 -->
+    <div class="controls">
+        <button class="btn btn-demo" id="btn-demo">🔊 標準示範</button>
+        <button class="btn btn-mic" id="btn-mic">🎤 按住朗讀完整成語</button>
+    </div>
+
+    <!-- 語音辨識狀態提示 -->
+    <div class="status-text" id="status-text">點擊示範聽讀音，或按下麥克風開始挑戰</div>
+
+    <!-- 過關獎勵彈窗 -->
+    <div class="overlay" id="overlay">
+        <h2>🎉 太棒了！答對了！</h2>
+        <p id="overlay-msg">正確唸出完整成語！</p>
+        <button class="btn btn-mic" id="btn-next">下一關 ➔</button>
+    </div>
+</div>
+
+<script>
+    // -------------------------------------------------------------
+    // 1. 國小中高年級常用成語辭庫設計
+    // -------------------------------------------------------------
+    const idiomBank = [
+        { idiom: "守株待兔", missingIndex: 3, meaning: "比喻拘泥守舊，不知變通；或企圖僥倖獲得成功。" },
+        { idiom: "畫蛇添足", missingIndex: 3, meaning: "比喻多此一舉，反而將事情弄糟糕。" },
+        { idiom: "井底之蛙", missingIndex: 3, meaning: "比喻見識狹隘、眼界狹小的人。" },
+        { idiom: "胸有成竹", missingIndex: 2, meaning: "比喻在做事之前，心中已有完整的謀劃與把握。" },
+        { idiom: "雪中送炭", missingIndex: 3, meaning: "比喻在他人急需時給予及時的援助。" },
+        { idiom: "狐假虎威", missingIndex: 2, meaning: "比喻藉著有權勢者的威光來欺壓他人。" },
+        { idiom: "唇亡齒寒", missingIndex: 3, meaning: "比喻關係密切，利害相關，一方受損另一方也會遭殃。" },
+        { idiom: "亡羊補牢", missingIndex: 3, meaning: "比喻事後採取補救措施，防止損失擴大。" },
+        { idiom: "飲水思源", missingIndex: 3, meaning: "比喻不忘本，懂得感恩懷德。" },
+        { idiom: "掩耳盜鈴", missingIndex: 3, meaning: "比喻企圖瞞騙他人，結果卻只是欺騙自己。" },
+        { idiom: "濫竽充數", missingIndex: 2, meaning: "比喻沒有真才實學的人混在行家裡面充數。" },
+        { idiom: "自相矛盾", missingIndex: 3, meaning: "比喻言語或行為前後不一，互相牴觸。" },
+        { idiom: "對牛彈琴", missingIndex: 3, meaning: "比喻對不懂道理的人講高深的道理，白費口舌。" },
+        { idiom: "拔苗助長", missingIndex: 2, meaning: "比喻急於求成，反而把事情弄巧成拙。" },
+        { idiom: "熟能生巧", missingIndex: 3, meaning: "形容做事熟練了，自然就能掌握其中的技巧。" }
+    ];
+
+    // -------------------------------------------------------------
+    // 2. 全域變數與狀態控管
+    // -------------------------------------------------------------
+    let currentIdx = 0;
+    let recognition = null;
+    let isListening = false;
+
+    // DOM 元素
+    const puzzleBox = document.getElementById("puzzle-box");
+    const idiomMeaning = document.getElementById("idiom-meaning");
+    const currentLevelEl = document.getElementById("current-level");
+    const totalLevelsEl = document.getElementById("total-levels");
+    const statusText = document.getElementById("status-text");
+    const btnDemo = document.getElementById("btn-demo");
+    const btnMic = document.getElementById("btn-mic");
+    const overlay = document.getElementById("overlay");
+    const btnNext = document.getElementById("btn-next");
+
+    totalLevelsEl.textContent = idiomBank.length;
+
+    // -------------------------------------------------------------
+    // 3. Web Speech API (語音辨識與語音合成) 初始化
+    // -------------------------------------------------------------
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'zh-TW';
+        recognition.continuous = false;
+        recognition.interimResults = true; // 即時取得辨識結果提升反應度
+
+        recognition.onstart = () => {
+            isListening = true;
+            btnMic.classList.add("listening");
+            btnMic.textContent = "🎙️ 聆聽中...請朗讀完整成語";
+            statusText.innerHTML = "正在聆聽您的聲音...";
+        };
+
+        recognition.onresult = (event) => {
+            let transcript = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                transcript += event.results[i][0].transcript;
+            }
+            
+            // 清理標點符號與空格
+            const cleanText = transcript.replace(/[^\u4e00-\u9fa5]/g, "");
+            statusText.innerHTML = `辨識結果：<span class="recognized-text">${cleanText}</span>`;
+
+            // 核心邏輯：驗證辨識結果是否包含完整的正確成語
+            const targetIdiom = idiomBank[currentIdx].idiom;
+            if (cleanText.includes(targetIdiom)) {
+                recognition.stop();
+                triggerSuccess();
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error("語音辨識錯誤:", event.error);
+            statusText.textContent = "辨識發生錯誤或未接收到聲音，請再試一次。";
+            resetMicBtn();
+        };
+
+        recognition.onend = () => {
+            resetMicBtn();
+        };
+    } else {
+        statusText.textContent = "您的瀏覽器不支援 Web Speech API，請改用 Chrome 或 Edge 瀏覽器。";
+        btnMic.disabled = true;
+        btnDemo.disabled = true;
+    }
+
+    function resetMicBtn() {
+        isListening = false;
+        btnMic.classList.remove("listening");
+        btnMic.textContent = "🎤 按住朗讀完整成語";
+    }
+
+    // 語音示範朗讀 (TTS)
+    function playDemo(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); // 停止先前的發音
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-TW';
+            utterance.rate = 0.8; // 稍微放慢語速，方便學童聆聽
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+
+    // -------------------------------------------------------------
+    // 4. 遊戲關卡渲染與互動邏輯
+    // -------------------------------------------------------------
+    function loadLevel(index) {
+        const item = idiomBank[index];
+        currentLevelEl.textContent = index + 1;
+        idiomMeaning.textContent = item.meaning;
+        statusText.textContent = "點擊「標準示範」聽讀音，或點擊「朗讀」開始回答！";
+        overlay.classList.remove("active");
+
+        // 清空並渲染字塊
+        puzzleBox.innerHTML = "";
+        const chars = item.idiom.split("");
+        
+        chars.forEach((char, i) => {
+            const tile = document.createElement("div");
+            tile.classList.add("char-tile");
+            
+            if (i === item.missingIndex) {
+                tile.classList.add("missing");
+                tile.textContent = "＿";
+                tile.id = "missing-tile";
+            } else {
+                tile.textContent = char;
+            }
+            puzzleBox.appendChild(tile);
+        });
+    }
+
+    // 觸發過關動畫與字塊補齊
+    function triggerSuccess() {
+        const item = idiomBank[currentIdx];
+        const missingTile = document.getElementById("missing-tile");
+        
+        if (missingTile) {
+            // 字塊發光並補齊文字
+            missingTile.textContent = item.idiom[item.missingIndex];
+            missingTile.classList.remove("missing");
+            missingTile.classList.add("revealed");
+        }
+
+        statusText.textContent = "🎉 太讚了！成語提取正確！";
+
+        // 播放成功提示語音並顯示過關彈窗
+        setTimeout
